@@ -40,9 +40,10 @@ static int bypass_swarm_cc(const swarm::args& args)
 {
   std::string cmd = args.get_command();
 
-  fprintf(stderr, "-- Bypassing swarm-cc command -- %s\n", cmd.c_str());
+  // fprintf(stderr, "-- Bypassing swarm-cc command -- %s\n", cmd.c_str());
 
-  return system(cmd.c_str());
+  int ret = system(cmd.c_str());
+  return WEXITSTATUS(ret);
 }
 
 int main(int argc, char** argv)
@@ -63,7 +64,7 @@ int main(int argc, char** argv)
   if (source_file.empty() or local_compile_target.empty()) {
     return bypass_swarm_cc(args);
   }
-  fprintf(stderr, "-- Processing swarm-cc command -- %s\n", args.get_command().c_str());
+  //  fprintf(stderr, "-- Processing swarm-cc command -- %s\n", args.get_command().c_str());
 
   //  return bypass_swarm_cc(args);
 
