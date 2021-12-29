@@ -74,5 +74,9 @@ target_link_libraries(swarm-lib ${SWARM_LIBRARIES})
 
 add_executable(swarm-cc swarm_cc.cpp)
 target_link_libraries(swarm-cc ${SWARM_LIBRARIES} swarm-lib)
-install(TARGETS swarm-cc)
+
+add_executable(swarm-top swarm_top.cpp)
+target_link_libraries(swarm-top ${SWARM_LIBRARIES} swarm-lib atomic)
+
+install(TARGETS swarm-cc swarm-top)
 install(TARGETS swarm-lib)

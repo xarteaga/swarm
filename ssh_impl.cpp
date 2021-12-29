@@ -118,12 +118,24 @@ public:
       break;
     }
 
-    int status = ssh_channel_get_exit_status(channel);
-    SWARM_ASSERT(status == 0, "Error. Remote execution finished with exit code %d", status);
+    // Ignore return status
+    //    int status = ssh_channel_get_exit_status(channel);
+    //    SWARM_ASSERT(status == 0, "Error. Remote execution finished with exit code %d", status);
 
     ssh_channel_close(channel);
 
     return ret;
+  }
+
+  int top(double measure_time_s) override
+  {
+    std::string vmstat_str =
+        execute_to_str("stat_cpu() { grep \"cpu \" /proc/stat | grep -o -m 1 \"[0-9]*\" | head -n 1; } ;S=" +
+                       std::to_string(measure_time_s) +
+                       ";C1=$(stat_cpu); sleep $S;C2=$(stat_cpu);N=$(grep \"processor\" /proc/cpuinfo | wc -l);echo "
+                       "\\(\\(100*\\($C2-$C1\\)\\)/\\($S*$N\\)\\)/100 | bc");
+
+    return std::min(static_cast<int>(std::stof(vmstat_str)), 100);
   }
 };
 class sftp_write_impl : public sftp_write
@@ -234,10 +246,20 @@ public:
   }
 };
 
+static int top_impl(ssh_session s, double measure_time_s)
+{
+  if (not ssh_is_connected(s)) {
+    return -1;
+  }
+
+  return channel_impl(s).top(measure_time_s);
+}
+
 class session_impl : public session
 {
 private:
   ssh_session session = nullptr;
+  std::string hostname;
 
   static int verify_knownhost(ssh_session session)
   {
@@ -315,15 +337,46 @@ private:
   }
 
 public:
-  session_impl(const std::vector<std::string>& hostnames)
+  explicit session_impl(const std::string& hostname_) : hostname(hostname_)
+  {
+    // Create session
+    session = ssh_new();
+
+    // Skip if session was not possible to open
+    SWARM_ASSERT(session != nullptr, "Error creating new SSH session");
+
+    SWARM_ASSERT(ssh_options_set(session, SSH_OPTIONS_HOST, hostname.c_str()) == SSH_OK,
+                 "Error setting the SSH hostname");
+    //    int nodelay = 1;
+    ////    SWARM_ASSERT(ssh_options_set(session, SSH_OPTIONS_NODELAY, &nodelay) == SSH_OK, "Error setting no delay");
+    ////    SWARM_ASSERT(ssh_options_set(session, SSH_OPTIONS_COMPRESSION, "yes") == SSH_OK, "Error setting
+    /// compression");
+    ////
+    ////    int timeout_s  = 0;
+    ////    int timeout_us = 1000;
+    ////    SWARM_ASSERT(ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &timeout_s) == SSH_OK, "Error setting timeout");
+    ////    SWARM_ASSERT(ssh_options_set(session, SSH_OPTIONS_TIMEOUT_USEC, &timeout_us) == SSH_OK,
+    ////                 "Error setting timeout in us");
+
+    // Connect to server
+    SWARM_ASSERT(ssh_connect(session) == SSH_OK, "Error connection to hostname '%s'", hostname.c_str());
+
+    // Verify known host
+    SWARM_ASSERT(verify_knownhost(session) >= 0, "Failed to verify known host");
+
+    // Authenticate user
+    SWARM_ASSERT(ssh_userauth_publickey_auto(session, nullptr, nullptr) == SSH_AUTH_SUCCESS,
+                 "Authentication failed: %s\n",
+                 ssh_get_error(session));
+  }
+
+  explicit session_impl(const std::vector<std::string>& hostnames)
   {
     std::vector<ssh_session> sessions(hostnames.size());
     int                      best_percent_cpu = 200;
 
     // For each hostname create session
     for (std::size_t i = 0; i < hostnames.size(); i++) {
-      const std::string& hostname = hostnames[i];
-
       // Create session
       sessions[i] = ssh_new();
 
@@ -332,7 +385,7 @@ public:
         continue;
       }
 
-      ssh_options_set(sessions[i], SSH_OPTIONS_HOST, hostname.c_str());
+      ssh_options_set(sessions[i], SSH_OPTIONS_HOST, hostnames[i].c_str());
 
       // Connect to server
       for (std::size_t trial = 0; trial < SWARM_MAX_NOF_TRIALS; trial++) {
@@ -349,26 +402,25 @@ public:
       }
 
       // Verify the server's identity
-      // For the source code of verify_knownhost(), check previous example
-      //      if (verify_knownhost(sessions[i]) < 0) {
-      //        ssh_disconnect(sessions[i]);
-      //        ssh_free(sessions[i]);
-      //        sessions[i] = nullptr;
-      //        continue;
-      //      }
       SWARM_ASSERT(verify_knownhost(sessions[i]) >= 0, "Failed to verify known host");
 
       SWARM_ASSERT(ssh_userauth_publickey_auto(sessions[i], nullptr, nullptr) == SSH_AUTH_SUCCESS,
                    "Authentication failed: %s\n",
                    ssh_get_error(sessions[i]));
 
-      channel_impl chan(sessions[i]);
-      std::string  vmstat_str = chan.execute_to_str("top -b -n 1 | grep Cpu | grep -m 1 -o '[0-9]*' | head -n 1");
+      // Get CPU percent
+      int cpu_percent = top_impl(sessions[i], 0.01);
 
-      int cpu_percent = std::stoi(vmstat_str);
+      // Skip if the CPU load is invalid
+      if (cpu_percent < 0) {
+        continue;
+      }
+
+      // Compare with the previous best
       if (cpu_percent < best_percent_cpu) {
         best_percent_cpu = cpu_percent;
         session          = sessions[i];
+        hostname         = hostnames[i];
       }
     }
 
@@ -409,6 +461,8 @@ public:
 
     session = nullptr;
   }
+
+  std::string get_hostname() const override { return hostname; }
 
   channel_ptr    make_channel() override { return std::make_shared<channel_impl>(session); }
   sftp_write_ptr make_sftp_write(const std::string& location) override
@@ -474,11 +528,25 @@ public:
 
     local_file.close();
   }
+
+  int top(double measure_time_s) override { return top_impl(session, measure_time_s); }
 };
+
+session_ptr make_session(const std::string& hostname)
+{
+  return std::make_shared<session_impl>(hostname);
+}
 
 session_ptr make_session(const std::vector<std::string>& hostnames)
 {
+  // If there is only one hostname, make the session with it
+  if (hostnames.size() == 1) {
+    return make_session(hostnames[0]);
+  }
+
+  // Otherwise select the one with lowest CPU
   return std::make_shared<session_impl>(hostnames);
 }
+
 } // namespace ssh
 } // namespace swarm

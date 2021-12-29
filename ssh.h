@@ -29,6 +29,7 @@ class channel
 {
 public:
   virtual int execute(const std::string& command) = 0;
+  virtual int top(double measure_time_s)          = 0;
 };
 
 typedef std::shared_ptr<channel> channel_ptr;
@@ -57,14 +58,18 @@ typedef std::shared_ptr<sftp_read> sftp_read_ptr;
 class session
 {
 public:
+  virtual std::string    get_hostname() const                                                                     = 0;
   virtual channel_ptr    make_channel()                                                                           = 0;
   virtual sftp_write_ptr make_sftp_write(const std::string& location)                                             = 0;
   virtual sftp_read_ptr  make_sftp_read(const std::string& location)                                              = 0;
   virtual void           sftp_copy_local_to_remote(const std::string& local_path, const std::string& remote_path) = 0;
   virtual void           sftp_copy_remote_to_local(const std::string& remote_path, const std::string& local_path) = 0;
+  virtual int            top(double measure_time_s)                                                               = 0;
 };
 
 typedef std::shared_ptr<session> session_ptr;
+
+SWARM_API session_ptr make_session(const std::string& hostname);
 
 SWARM_API session_ptr make_session(const std::vector<std::string>& hostnames);
 

@@ -22,7 +22,6 @@
 
 #define SWARM_ENV_VAR_HOSTNAME_LIST "SWARM_HOSTNAMES"
 #define SWARM_DEFAULT_HOSTNAME_LIST "localhost"
-//#define SWARM_DEFAULT_HOSTNAME_LIST "sdr-carbon.bcn"
 #define SWARM_HOSTNAME_LIST_DELIMITER ','
 
 #define SWARM_ENV_VAR_HOSTNAME "HOSTNAME"
@@ -30,7 +29,7 @@
 
 #define SWARM_REMOTE_PATH std::string("/tmp/swarm/")
 #define SWARM_SCP_BUFFER_SZ (1024 * 1024)
-#define SWARM_MAX_NOF_TRIALS 10
+#define SWARM_MAX_NOF_TRIALS 2
 #define SWARM_PRECOMPILER_EXPECTED_STATUS 0
 
 #define SWARM_ASSERT(CONDITION, FMT, ...)                                                                              \

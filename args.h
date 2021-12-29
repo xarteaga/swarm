@@ -35,7 +35,6 @@ public:
   {
     std::regex regex_double_quote("(\".*\")");
     std::regex regex_single_quote("(\'.*\')");
-    SWARM_ASSERT(argc > 1, "Invalid number of arguments (%d)", argc);
 
     // Allocate arguments
     list.resize(argc - 1);
