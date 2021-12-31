@@ -63,13 +63,24 @@ FIND_LIBRARY(
 )
 message(STATUS "LIBPTHREAD LIBRARIES " ${LIBPTHREAD_LIBRARY})
 
+FIND_LIBRARY(
+        LIBRT_LIBRARY
+        NAMES rt
+        PATHS /usr/local/lib
+        /usr/lib
+        /usr/lib/x86_64-linux-gnu
+        /usr/local/lib64
+        /usr/local/lib32
+)
+message(STATUS "LIBRT LIBRARIES " ${LIBRT_LIBRARY})
+
 # Put required libraries together
-set(SWARM_LIBRARIES ${LIBSSH_LIBRARY} ${LIBSSL_LIBRARY} ${LIBGSSAPI_LIBRARY} ${LIBPTHREAD_LIBRARY})
+set(SWARM_LIBRARIES ${LIBSSH_LIBRARY} ${LIBSSL_LIBRARY} ${LIBGSSAPI_LIBRARY} ${LIBPTHREAD_LIBRARY} ${LIBRT_LIBRARY})
 
 include_directories(${LIBSSH_INCLUDE_DIRS})
 link_directories(${LIBSSH_LIBRARY_DIRS})
 
-add_library(swarm-lib hostnames.cpp ssh_impl.cpp args.h)
+add_library(swarm-lib hostnames.cpp ssh_impl.cpp shared.cpp)
 target_link_libraries(swarm-lib ${SWARM_LIBRARIES})
 
 add_executable(swarm-cc swarm_cc.cpp)
@@ -78,5 +89,9 @@ target_link_libraries(swarm-cc ${SWARM_LIBRARIES} swarm-lib)
 add_executable(swarm-top swarm_top.cpp)
 target_link_libraries(swarm-top ${SWARM_LIBRARIES} swarm-lib atomic)
 
-install(TARGETS swarm-cc swarm-top)
+
+add_executable(swarm-lb swarm_lb.cpp)
+target_link_libraries(swarm-lb ${SWARM_LIBRARIES} swarm-lib atomic)
+
+install(TARGETS swarm-cc swarm-top swarm-lb)
 install(TARGETS swarm-lib)

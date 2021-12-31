@@ -102,30 +102,22 @@ int main(int argc, char** argv)
     // Print table header
     if (head_count == 0) {
       printf("+----------------------+------------+------------+\n");
-      printf("| %20s | %10s | %10s |\n", "Hostname", "Lat. [ms]", "CPU [%]");
+      printf("| %20s | %10s | %10s | %10s |\n", "Hostname", "Lat. [ms]", "CPU [%]", "Fitness");
       printf("+----------------------+------------+------------+\n");
     }
     head_count = (head_count + 1) % 10;
 
     // For each session...
     for (swarm::ssh::session_ptr session : sessions) {
-      // Get initial time for the host command
-      std::chrono::steady_clock::time_point session_begin = std::chrono::steady_clock::now();
+      const double measure_time_s = 0.05;
 
-      // Get CPU utilization percent
-      double measure_time_s = 0.05;
-      int    cpu_percent    = session->top(measure_time_s);
-
-      // Get end time for the host command
-      std::chrono::steady_clock::time_point session_end = std::chrono::steady_clock::now();
-
-      // Calculate command latency in ms
-      int latency_ms =
-          static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(session_end - session_begin).count());
-      latency_ms = std::max(0, latency_ms - static_cast<int>(measure_time_s * 1000.0));
+      // Calculate parameters
+      int    latency_ms  = 0;
+      int    cpu_percent = 0;
+      double fitness     = session->fitness(measure_time_s, &cpu_percent, &latency_ms);
 
       // Print latency
-      printf("| %20s | %10d | %10d |\n", session->get_hostname().c_str(), latency_ms, cpu_percent);
+      printf("| %20s | %10d | %10d | %10.2f |\n", session->get_hostname().c_str(), latency_ms, cpu_percent, fitness);
     }
 
     // If n is set, then the loop is finite

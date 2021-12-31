@@ -19,6 +19,7 @@
 #include "ssh.h"
 #include "string_helpers.h"
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -125,6 +126,12 @@ public:
     ssh_channel_close(channel);
 
     return ret;
+  }
+
+  int ncore()
+  {
+    std::string ncore_str = execute_to_str("grep \"processor\" /proc/cpuinfo | wc -l");
+    return static_cast<int>(std::stof(ncore_str));
   }
 
   int top(double measure_time_s) override
@@ -359,7 +366,21 @@ public:
     ////                 "Error setting timeout in us");
 
     // Connect to server
-    SWARM_ASSERT(ssh_connect(session) == SSH_OK, "Error connection to hostname '%s'", hostname.c_str());
+    for (std::size_t trial = 0; trial < SWARM_MAX_NOF_TRIALS; trial++) {
+      if (ssh_connect(session) == SSH_OK) {
+        break;
+      }
+
+      // Try in 1ms again
+      usleep(1000);
+    }
+
+    SWARM_ASSERT(ssh_is_connected(session),
+                 "Error connection to hostname '%s' after %d trials: %s (%d)",
+                 hostname.c_str(),
+                 SWARM_MAX_NOF_TRIALS,
+                 ssh_get_error(session),
+                 ssh_get_error_code(session));
 
     // Verify known host
     SWARM_ASSERT(verify_knownhost(session) >= 0, "Failed to verify known host");
@@ -530,6 +551,40 @@ public:
   }
 
   int top(double measure_time_s) override { return top_impl(session, measure_time_s); }
+
+  double fitness(double measure_time_s, int* cpu_percent, int* latency_ms) override
+  {
+    // Get initial time for the host command
+    std::chrono::steady_clock::time_point session_begin = std::chrono::steady_clock::now();
+
+    // Get CPU utilization percent
+    int cpu_percent_ = top(measure_time_s);
+
+    // Get end time for the host command
+    std::chrono::steady_clock::time_point session_end = std::chrono::steady_clock::now();
+
+    // Calculate command latency in ms
+    int latency_ms_ =
+        static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(session_end - session_begin).count());
+    latency_ms_ = std::max(0, latency_ms_ - static_cast<int>(measure_time_s * 1000.0));
+
+    // Protect zero division, which it should be impossible, even with a localhost
+    if (latency_ms_ == 0 or cpu_percent_ < 0) {
+      return 0.0;
+    }
+
+    if (cpu_percent != nullptr) {
+      *cpu_percent = cpu_percent_;
+    }
+
+    if (latency_ms != nullptr) {
+      *latency_ms = latency_ms_;
+    }
+
+    // Return somewhat the host fitness
+    const double latency_factor = 0.1;
+    return (100.0 - static_cast<double>(cpu_percent_)) / (latency_factor * static_cast<double>(latency_ms_));
+  }
 };
 
 session_ptr make_session(const std::string& hostname)

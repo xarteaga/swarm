@@ -23,14 +23,15 @@
 #define SWARM_ENV_VAR_HOSTNAME_LIST "SWARM_HOSTNAMES"
 #define SWARM_DEFAULT_HOSTNAME_LIST "localhost"
 #define SWARM_HOSTNAME_LIST_DELIMITER ','
-
-#define SWARM_ENV_VAR_HOSTNAME "HOSTNAME"
-#define SWARM_DEFAULT_HOSTNAME "no-host-name"
+#define SWARM_HOSTNAME_MAX_LENGTH 253
+#define SWARM_HOSTNAME_IPC_FILENAME "/swarm-lb-hostname"
 
 #define SWARM_REMOTE_PATH std::string("/tmp/swarm/")
 #define SWARM_SCP_BUFFER_SZ (1024 * 1024)
-#define SWARM_MAX_NOF_TRIALS 2
+#define SWARM_MAX_NOF_TRIALS 10
 #define SWARM_PRECOMPILER_EXPECTED_STATUS 0
+
+#define SWARM_ENABLE_DEBUG_TRACE 0
 
 #define SWARM_ASSERT(CONDITION, FMT, ...)                                                                              \
   do {                                                                                                                 \

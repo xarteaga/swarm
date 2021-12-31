@@ -65,6 +65,7 @@ public:
   virtual void           sftp_copy_local_to_remote(const std::string& local_path, const std::string& remote_path) = 0;
   virtual void           sftp_copy_remote_to_local(const std::string& remote_path, const std::string& local_path) = 0;
   virtual int            top(double measure_time_s)                                                               = 0;
+  virtual double         fitness(double measure_time_s, int* cpu_percent, int* latency_ms)                        = 0;
 };
 
 typedef std::shared_ptr<session> session_ptr;

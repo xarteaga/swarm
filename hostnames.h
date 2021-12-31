@@ -24,8 +24,13 @@
 
 namespace swarm {
 namespace hostname {
-std::vector<std::string> get_all();
-std::string              get_local();
+
+typedef std::vector<std::string> vector_t;
+
+vector_t    get_all();
+std::string get_local();
+std::string get_lb();
+
 } // namespace hostname
 } // namespace swarm
 

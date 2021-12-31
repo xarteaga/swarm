@@ -17,14 +17,15 @@
 
 #include "hostnames.h"
 #include "config.h"
+#include "shared.h"
 #include "string_helpers.h"
 #include <cerrno>
 #include <cstring>
 #include <unistd.h>
 
-std::vector<std::string> swarm::hostname::get_all()
+swarm::hostname::vector_t swarm::hostname::get_all()
 {
-  std::vector<std::string> list;
+  swarm::hostname::vector_t list;
 
   // Get the hostname list in C string
   const char* hostnames_c = getenv(SWARM_ENV_VAR_HOSTNAME_LIST);
@@ -47,4 +48,19 @@ std::string swarm::hostname::get_local()
 
   // Convert to C++ string
   return hostname_c;
+}
+
+std::string swarm::hostname::get_lb()
+{
+  swarm::shared::request<char[SWARM_HOSTNAME_MAX_LENGTH]> request(SWARM_HOSTNAME_IPC_FILENAME);
+
+  char hostname[SWARM_HOSTNAME_MAX_LENGTH] = {};
+
+  request.send_request();
+
+  // Read hostname from the load balancer
+  request.read(hostname);
+
+  // If the load balance cannot be read, then return an empty string
+  return hostname;
 }

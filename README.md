@@ -44,6 +44,14 @@ host *
     Compression yes
 ```
 
+To maximize the maximum number of connections a host supports, one can append to `/etc/ssh/sshd_config` (for remote
+hosts):
+
+```
+MaxSessions 60
+MaxStartups 1024
+```
+
 ## Use cases
 
 Currently, there is only one working example `swarm-cc` which allows distributed C and C++ compilation in a distributed
@@ -69,8 +77,7 @@ cmake .. \
   CXX="swarm-cc g++"\
 ```
 
-Linux kernel example using an i7-7800X (12 threads) as local host and an i7-11700K (16 threads) as remote host with a
-22ms ping:
+Linux kernel example using two hosts:
 
 ```
 git clone https://github.com/torvalds/linux.git
@@ -80,6 +87,10 @@ make defconfig
 make menuconfig (and load whatever kernel configuration file you need)
 SWARM_HOSTNAMES=localhost,remotehost time make -j28 CC="swarm-cc gcc"
 ```
+
+This may result in higher time due to the host selection algorithm during SSH session connection. To improve the host
+selection `swarm-lb` polls the CPU load from the host candidates to create a fitness parameter and through inter-process
+communication provides the best fitted CPU.
 
 ## Task distribution process
 

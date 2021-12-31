@@ -46,6 +46,25 @@ static int bypass_swarm_cc(const swarm::args& args)
   return WEXITSTATUS(ret);
 }
 
+static swarm::hostname::vector_t get_host_candidates()
+{
+  std::vector<std::string> hostnames;
+
+  // Try reading the host candidate from the local load balancer
+  std::string hostname_lb = swarm::hostname::get_lb();
+
+  // If getter from the load balancer failed...
+  if (hostname_lb.empty()) {
+    // ... get all the hostnames candidates
+    hostnames = swarm::hostname::get_all();
+  } else {
+    // ... use the load-balancer candidate
+    hostnames.emplace_back(hostname_lb);
+  }
+
+  return hostnames;
+}
+
 int main(int argc, char** argv)
 {
   // Parse input parameters
@@ -64,9 +83,14 @@ int main(int argc, char** argv)
   if (source_file.empty() or local_compile_target.empty()) {
     return bypass_swarm_cc(args);
   }
-  //  fprintf(stderr, "-- Processing swarm-cc command -- %s\n", args.get_command().c_str());
 
-  //  return bypass_swarm_cc(args);
+  // Lists the possible host candidates
+  std::vector<std::string> hostnames = get_host_candidates();
+
+  // If only one hostname candidate and this is localhost, avoid SSH overhead by bypassing the command
+  if (hostnames.size() == 1UL and hostnames.front() == "localhost") {
+    return bypass_swarm_cc(args);
+  }
 
   // Generate local precompile target name
   std::string local_precompile_target = SWARM_REMOTE_PATH + "/" + source_file;
@@ -115,9 +139,6 @@ int main(int argc, char** argv)
 
   // Precompile
   std::thread precompile_thread(precompile, precompile_args.get_command());
-
-  // Get hostnames candidates
-  std::vector<std::string> hostnames = swarm::hostname::get_all();
 
   // Create SSH session
   swarm::ssh::session_ptr session = swarm::ssh::make_session(hostnames);
